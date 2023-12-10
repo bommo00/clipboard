@@ -1,11 +1,15 @@
 import flet as ft
 import pyperclip
 import requests
-import os
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+import base64
 
-url = 'MY URL'
+url = 'url'
 username = 'what'
 is_expansion = True
+key = b'3333333333333'
+aes = AES.new(key,AES.MODE_ECB)
 
 
 
@@ -30,50 +34,48 @@ def main(page: ft.Page):
             page.window_height = 68
             page.update()
             is_expansion = True
-        load_in(e)
 
-    def load_in(e):
-        def copy_text(e):
-            pyperclip.copy(new.text)
 
-        def fixed(e):
-            data = {'id': username, 'text': new.text}
-            requests.post(url + '/switch', data=data)
-            if e.control.bgcolor == "blue":
-                e.control.bgcolor = "white"
-            else:
-                e.control.bgcolor = "blue"
-            e.control.update()
+    def copy_text(e):
+        pyperclip.copy(e.control.text)
 
+    def fixed(e):
+        msg = pad(new_text.value.encode('utf-8'), AES.block_size)
+        en_text = aes.encrypt(msg)
+        base64_en_text = base64.b64encode(en_text).decode('utf-8')
+        data = {'id': username, 'text': base64_en_text}
+        requests.post(url + '/switch', data=data)
+        if e.control.bgcolor == "blue":
+            e.control.bgcolor = "white"
+        else:
+            e.control.bgcolor = "blue"
+        e.control.update()
+
+    def loading():
         params = {'id': username}
         response = requests.get(url+'/get', params=params)
         texts = response.json()
         if texts:
             for t in texts:
-                new = ft.ElevatedButton(text=f"{t['content']}", bgcolor='blue', on_click=copy_text, on_long_press=fixed)
-                page.add(new)
+                base64_de_text = base64.b64decode(t['content'])  # Base64解码
+                de_text = aes.decrypt(base64_de_text)
+                msg = unpad(de_text, AES.block_size).decode('utf-8')
+                page.insert(2,
+                    ft.ElevatedButton(text=msg, bgcolor='blue', color='white',on_click=copy_text, on_long_press=fixed)
+                )
         page.update()
     def refresh(e):
-
-        def copy_text(e):
-            pyperclip.copy(new.text)
-
-        def fixed(e):
-            data = {'id': username, 'text': new.text}
-            requests.post(url + '/switch', data=data)
-            if e.control.bgcolor == "blue":
-                e.control.bgcolor = "white"
-            else:
-                e.control.bgcolor = "blue"
-            e.control.update()
-
         params = {'id': username}
         response = requests.get(url+'/get', params=params)
         texts = response.json()
         if texts:
             for t in texts:
-                new = ft.ElevatedButton(text=f"{t['content']}", bgcolor='white', on_click=copy_text, on_long_press=fixed)
-                page.add(new)
+                base64_de_text = base64.b64decode(t['content'])  # Base64解码
+                de_text = aes.decrypt(base64_de_text)
+                msg = unpad(de_text, AES.block_size).decode('utf-8')
+                page.insert(2,
+                    ft.ElevatedButton(text=msg, bgcolor='white', on_click=copy_text, on_long_press=fixed)
+                )
         page.update()
 
 
@@ -92,29 +94,22 @@ def main(page: ft.Page):
 
 
     def add_text(e):
-        def copy_text(e):
-            pyperclip.copy(text.text)
-
-        def fixed(e):
-            data = {'id': username, 'text': text.text}
-            requests.post(url + '/switch', data=data)
-            if e.control.bgcolor == "blue":
-                e.control.bgcolor = "white"
-            else:
-                e.control.bgcolor = "blue"
-            e.control.update()
-
-
-        text = ft.ElevatedButton(text=f"{new_text.value}", bgcolor='white', on_click=copy_text, on_long_press=fixed)
+        text = ft.ElevatedButton(text=new_text.value, bgcolor='white', on_click=copy_text, on_long_press=fixed)
         page.controls.insert(2, text)
 
-        data = {'id': username, 'text': new_text.value}
+        msg = pad(new_text.value.encode('utf-8'), AES.block_size)
+        en_text = aes.encrypt(msg)
+        base64_en_text = base64.b64encode(en_text).decode('utf-8')
+        data = {'id': username, 'text': base64_en_text}
         response = requests.post(url+'/update', data=data)
         texts = response.json()
         if texts:
             for t in texts:
-                page.add(
-                    ft.ElevatedButton(text=f"{t['content']}", bgcolor='white', on_click=copy_text, on_long_press=fixed)
+                base64_de_text = base64.b64decode(t['content'])  # Base64解码
+                de_text = aes.decrypt(base64_de_text)
+                msg = unpad(de_text, AES.block_size).decode('utf-8')
+                page.insert(2,
+                    ft.ElevatedButton(text=msg, bgcolor='white', on_click=copy_text, on_long_press=fixed)
                 )
         page.update()
 
@@ -129,6 +124,7 @@ def main(page: ft.Page):
 
     new_text = ft.TextField(hint_text="Copy in here",on_submit=add_text, multiline=True, shift_enter=True)
     page.add(new_text)
+    loading()
 
 
 if __name__ == "__main__":
