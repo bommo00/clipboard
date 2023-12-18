@@ -1,4 +1,5 @@
-Clipboard
+-Clipboard-
+
 Simple application as a cross-platform clipboard
 
 [win] FLET
