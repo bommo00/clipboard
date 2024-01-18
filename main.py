@@ -1,14 +1,16 @@
 import flet as ft
 import pyperclip
 import requests
+from datetime import datetime
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import base64
 import os
 import json
 
-url = ''
+url = 'BACKENDURL'
 is_expansion = True
+
 
 
 def main(page: ft.Page):
@@ -35,7 +37,6 @@ def main(page: ft.Page):
             user_pass = to_encode(password.value)
             data = {'email': username, 'password': user_pass}
             response = requests.post(url + '/' + func, data=data)
-            print(response)
             if response == 401:
                 page.add(ft.Text('Wrong password or Account.', color=ft.colors.RED_400))
             elif response == 500:
@@ -50,7 +51,7 @@ def main(page: ft.Page):
                     file.write(data)
                 with open(".info/e.bin", 'wb') as file:
                     file.write(key)
-                page.go('/main')
+                page.go('/')
 
         def routing_register(e):
             global func
@@ -121,21 +122,21 @@ def main(page: ft.Page):
 
         # Function for text manage with API
         def loading():
-            params = {'id': username}
+            global time
+            time = datetime.now().isoformat()
+            params = {'id': username, 'time': time}
             headers = {'Authorization': f'Bearer {access_token}'}
-            response = requests.get(url + '/get', params=params, headers=headers)
+            response = requests.get(url + '/load', params=params, headers=headers)
             if response.status_code == 200:
                 texts = response.json()
-                print(texts)
                 if texts == {'status': 'success'}:
                     pass
                 else:
                     if not isinstance(texts, list):
                         texts = [texts]
-                        print(texts)
                     for t in texts:
                         text = to_decode(t['content'])
-                        page.insert(2,
+                        main_page.controls.insert(2,
                                     ft.ElevatedButton(text=text, bgcolor='blue', color='white', on_click=copy_text,
                                                       on_long_press=fixed)
                                     )
@@ -145,7 +146,8 @@ def main(page: ft.Page):
             page.update()
 
         def refresh(e):
-            params = {'id': username}
+            global time
+            params = {'id': username, 'time': time}
             headers = {'Authorization': f'Bearer {access_token}'}
             response = requests.get(url + '/get', params=params, headers=headers)
             if response.status_code == 200:
@@ -157,21 +159,23 @@ def main(page: ft.Page):
                         texts = [texts]
                     for t in texts:
                         text = to_decode(t['content'])
-                        page.insert(2,
+                        main_page.controls.insert(2,
                                     ft.ElevatedButton(text=text, bgcolor='white', on_click=copy_text,
                                                       on_long_press=fixed)
                                     )
             else:
                 open_dlg()
-
+            time = datetime.now().isoformat()
             page.update()
 
         def add_text(e):
             text = ft.ElevatedButton(text=new_text.value, bgcolor='white', on_click=copy_text, on_long_press=fixed)
-            page.controls.insert(2, text)
+            main_page.controls.insert(2, text)
 
             en_text = to_encode(new_text.value)
-            data = {'id': username, 'text': en_text}
+            global time
+            time = datetime.now().isoformat()
+            data = {'id': username, 'text': en_text, 'time': time}
 
             new_text.value = ''
 
@@ -186,13 +190,14 @@ def main(page: ft.Page):
                         texts = [texts]
                     for t in texts:
                         text = to_decode(t['content'])
-                        page.insert(2,
+                        main_page.controls.insert(2,
                                     ft.ElevatedButton(text=text, bgcolor='white', on_click=copy_text,
                                                       on_long_press=fixed)
                                     )
             else:
                 open_dlg()
             page.update()
+
 
         page.window_always_on_top = True
         page.window_title_bar_hidden = True
@@ -202,9 +207,11 @@ def main(page: ft.Page):
         page.window_left = 1500
         page.window_top = 150
 
+
         dlg = ft.AlertDialog(title=ft.Text("Here is some problem;("))
         new_text = ft.TextField(hint_text="Copy in here", on_submit=add_text, multiline=True, shift_enter=True)
-        page.add(ft.Row(
+        main_page = ft.View('/', [
+            ft.Row(
             [
                 ft.WindowDragArea(
                     ft.Container(ft.Text("CLIP-BROAD"),
@@ -212,22 +219,24 @@ def main(page: ft.Page):
                 ft.IconButton(ft.icons.REFRESH, on_click=refresh),
                 ft.IconButton(ft.icons.CLOSE, on_click=lambda _: page.window_close(), ),
 
-            ]), new_text)
-        page.update()
+            ]),
+            new_text])
+        page.views.append(main_page)
         loading()
+        page.update()
 
     def route_change(handler):
         route = ft.TemplateRoute(handler.route)
         if route.match("/verify"):
             verity_page()
         elif route.match("/"):
+            page.views.clear()
+            page.controls = []
             home_page()
-        page.update()
 
     page.on_route_change = route_change
     page.title = "ClipBroad"
     if not os.path.exists(".info/ts.json") or not os.path.exists(".info/e.bin"):
-        print('what')
         page.go('/verify')
     else:
         with open(".info/ts.json", 'r') as file:
